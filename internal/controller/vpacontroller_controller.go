@@ -106,7 +106,7 @@ func generateVPA(name, namespace string, selector *metav1.LabelSelector, kind st
 			},
 			UpdatePolicy: &autoscalingv1.PodUpdatePolicy{
 				UpdateMode: func() *autoscalingv1.UpdateMode {
-					mode := autoscalingv1.UpdateModeAuto
+					mode := autoscalingv1.UpdateModeOff
 					return &mode
 				}(),
 			},
