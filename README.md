@@ -1,8 +1,16 @@
-# vpa-creation-operator
-// TODO(user): Add simple overview of use/purpose
+![LOGO](./includes/logo.png)
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+# VPA Auto Creation Controller
+
+This Kubernetes controller automatically creates a `VerticalPodAutoscaler` (VPA) resource for any `Deployment`, `DaemonSet`, or `StatefulSet` that opts in using an annotation.
+
+## Features
+
+- Auto-creates VPA for annotated workloads;
+- Cleans up orphaned VPAs;
+- Sets `OwnerReference` for automatic VPA deletion;
+- Supports Deployments, DaemonSets, and StatefulSets.
 
 ## Getting Started
 
@@ -10,91 +18,83 @@
 - go version v1.22.0+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- Access to a Kubernetes v1.11.3+ cluster;
+- Vertical Pod Autoscaller controller and CRDs installed.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+### How It Works
 
-```sh
-make docker-build docker-push IMG=<some-registry>/vpa-creation-operator:tag
+Any `Deployment`, `DaemonSet`, or `StatefulSet` with this annotation:
+
+```yaml
+metadata:
+  annotations:
+    k8s.autoscaling.vpacreation/vpa-enabled: "true"
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+will automatically get a matching [VPA resource](https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler).
 
-**Install the CRDs into the cluster:**
+When the workload is deleted, the VPA is also deleted automatically.
 
-```sh
-make install
+### Usage and Test
+
+1. Locally build the controller:
+
+``` bash
+$ make docker-build
+$ make deploy IMG=your-image:tag
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+2. Annotate your workload:
 
-```sh
-make deploy IMG=<some-registry>/vpa-creation-operator:tag
+```yaml
+metadata:
+  annotations:
+    k8s.autoscaling.vpacreation/vpa-enabled: "true"
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+3. Deploy your workload and verify VPA creation:
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
+```bash
+$ kubectl apply <your_workload>.yaml
+$ kubectl get vpa
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+### Full example
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+Below is an example with a nginx deployment:
 
-```sh
-kubectl delete -k config/samples/
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-vpa
+  namespace: tetris
+  annotations:
+    k8s.autoscaling.vpacreation/vpa-enabled: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test
+  template:
+    metadata:
+      labels:
+        app: test
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+## RBAC Requirements
 
-```sh
-make uninstall
-```
+The controller needs permission to:
+- Read `Deployment`, `DaemonSet`, or `StatefulSet`;
+- Create and delete `VerticalPodAutoscalers`
 
-**UnDeploy the controller from the cluster:**
+## Cleanup
 
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/vpa-creation-operator:tag
-```
-
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/vpa-creation-operator/<tag or branch>/dist/install.yaml
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+VPAs are deleted automatically when their owning workload is deleted — no manual cleanup needed.
 
 ## License
 
