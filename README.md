@@ -12,6 +12,10 @@ This Kubernetes controller automatically creates a `VerticalPodAutoscaler` (VPA)
 - Sets `OwnerReference` for automatic VPA deletion;
 - Supports Deployments, DaemonSets, and StatefulSets.
 
+## Image
+
+The controller is built for multi-arch hosts and is available `sindvero/vpauto-creation-controller`
+
 ## Getting Started
 
 ### Prerequisites
@@ -20,6 +24,10 @@ This Kubernetes controller automatically creates a `VerticalPodAutoscaler` (VPA)
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster;
 - Vertical Pod Autoscaller controller and CRDs installed.
+
+### Deploy the controller
+
+The manifests can be found under [./config/manager/](./config/manager/). You can deployed the manager with those manifest using kustomize.
 
 ### How It Works
 
@@ -36,6 +44,8 @@ will automatically get a matching [VPA resource](https://github.com/kubernetes/a
 When the workload is deleted, the VPA is also deleted automatically.
 
 ### Usage and Test
+
+If you prefer to build it locally: 
 
 1. Locally build the controller:
 

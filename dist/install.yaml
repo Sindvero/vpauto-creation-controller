@@ -208,7 +208,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: controller:latest
+        image: sindvero/vpauto-creation-controller:v0.0.1
         livenessProbe:
           httpGet:
             path: /healthz
