@@ -41,18 +41,29 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	// Clean up orphaned VPAs
+	for _, vpa := range vpaList.Items {
+		if vpa.OwnerReferences == nil || len(vpa.OwnerReferences) == 0 {
+			logger.Info("Deleting orphaned VPA", "name", vpa.Name)
+			_ = r.Client.Delete(ctx, &vpa)
+		}
+	}
+
 	// Process Deployments
 	var deployments appsv1.DeploymentList
 	r.Client.List(ctx, &deployments)
 	for _, dep := range deployments.Items {
+		vpaName := dep.Name + "-vpa"
 		if val, ok := dep.Annotations[vpaAnnotationKey]; ok && val == "true" {
-			vpaName := dep.Name + "-vpa"
 			var existingVPA autoscalingv1.VerticalPodAutoscaler
 			err := r.Client.Get(ctx, client.ObjectKey{Namespace: dep.Namespace, Name: vpaName}, &existingVPA)
 			if errors.IsNotFound(err) {
-				vpa := generateVPA(dep.Name+"-vpa", dep.Namespace, dep.Spec.Selector, "Deployment")
+				vpa := r.generateVPA(vpaName, dep.Namespace, dep.Spec.Selector, "Deployment", &dep)
 				logger.Info("Creating VPA for Deployment", "name", vpa.Name)
-				r.Client.Create(ctx, &vpa)
+				if err := r.Client.Create(ctx, &vpa); err != nil {
+					logger.Error(err, "Failed to create VPA", "name", vpa.Name)
+					return ctrl.Result{}, err
+				}
 			}
 		}
 	}
@@ -61,14 +72,17 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	var daemonSets appsv1.DaemonSetList
 	r.Client.List(ctx, &daemonSets)
 	for _, ds := range daemonSets.Items {
+		vpaName := ds.Name + "-vpa"
 		if val, ok := ds.Annotations[vpaAnnotationKey]; ok && val == "true" {
-			vpaName := ds.Name + "-vpa"
 			var existingVPA autoscalingv1.VerticalPodAutoscaler
 			err := r.Client.Get(ctx, client.ObjectKey{Namespace: ds.Namespace, Name: vpaName}, &existingVPA)
 			if errors.IsNotFound(err) {
-				vpa := generateVPA(ds.Name+"-vpa", ds.Namespace, ds.Spec.Selector, "DaemonSet")
+				vpa := r.generateVPA(vpaName, ds.Namespace, ds.Spec.Selector, "DaemonSet", &ds)
 				logger.Info("Creating VPA for DaemonSet", "name", vpa.Name)
-				r.Client.Create(ctx, &vpa)
+				if err := r.Client.Create(ctx, &vpa); err != nil {
+					logger.Error(err, "Failed to create VPA", "name", vpa.Name)
+					return ctrl.Result{}, err
+				}
 			}
 		}
 	}
@@ -77,14 +91,17 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	var statefulSets appsv1.StatefulSetList
 	r.Client.List(ctx, &statefulSets)
 	for _, sts := range statefulSets.Items {
+		vpaName := sts.Name + "-vpa"
 		if val, ok := sts.Annotations[vpaAnnotationKey]; ok && val == "true" {
-			vpaName := sts.Name + "-vpa"
 			var existingVPA autoscalingv1.VerticalPodAutoscaler
 			err := r.Client.Get(ctx, client.ObjectKey{Namespace: sts.Namespace, Name: vpaName}, &existingVPA)
 			if errors.IsNotFound(err) {
-				vpa := generateVPA(sts.Name+"-vpa", sts.Namespace, sts.Spec.Selector, "StatefulSet")
+				vpa := r.generateVPA(vpaName, sts.Namespace, sts.Spec.Selector, "StatefulSet", &sts)
 				logger.Info("Creating VPA for StatefulSet", "name", vpa.Name)
-				r.Client.Create(ctx, &vpa)
+				if err := r.Client.Create(ctx, &vpa); err != nil {
+					logger.Error(err, "Failed to create VPA", "name", vpa.Name)
+					return ctrl.Result{}, err
+				}
 			}
 		}
 	}
@@ -92,8 +109,8 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-func generateVPA(name, namespace string, selector *metav1.LabelSelector, kind string) autoscalingv1.VerticalPodAutoscaler {
-	return autoscalingv1.VerticalPodAutoscaler{
+func (r *VPAControllerReconciler) generateVPA(name, namespace string, selector *metav1.LabelSelector, kind string, owner client.Object) autoscalingv1.VerticalPodAutoscaler {
+	vpa := autoscalingv1.VerticalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -112,6 +129,8 @@ func generateVPA(name, namespace string, selector *metav1.LabelSelector, kind st
 			},
 		},
 	}
+	_ = ctrl.SetControllerReference(owner, &vpa, r.Scheme)
+	return vpa
 }
 
 func (r *VPAControllerReconciler) SetupWithManager(mgr ctrl.Manager) error {
