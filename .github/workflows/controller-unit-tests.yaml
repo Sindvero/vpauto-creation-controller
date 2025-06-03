@@ -1,4 +1,4 @@
-name: Run Controller Tests
+name: Run Controller Unit Tests
 
 on:
   push:
