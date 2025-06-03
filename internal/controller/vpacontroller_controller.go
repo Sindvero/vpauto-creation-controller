@@ -13,6 +13,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingcorev1 "k8s.io/api/autoscaling/v1"
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
+
+	"github.com/Sindvero/vpa-creation-operator/internal/metrics"
 )
 
 // +kubebuilder:rbac:groups=apps,resources=deployments;daemonsets;statefulsets,verbs=get;list;watch
@@ -21,7 +23,8 @@ import (
 
 type VPAControllerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme  *runtime.Scheme
+	Metrics *metrics.Collectors
 }
 
 const vpaAnnotationKey = "k8s.autoscaling.vpacreation/vpa-enabled"
@@ -45,6 +48,7 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	for _, vpa := range vpaList.Items {
 		if vpa.OwnerReferences == nil || len(vpa.OwnerReferences) == 0 {
 			logger.Info("Deleting orphaned VPA", "name", vpa.Name)
+			r.Metrics.VPADeleted.WithLabelValues(vpa.Namespace).Inc()
 			_ = r.Client.Delete(ctx, &vpa)
 		}
 	}
@@ -64,6 +68,7 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					logger.Error(err, "Failed to create VPA", "name", vpa.Name)
 					return ctrl.Result{}, err
 				}
+				r.Metrics.VPACreated.WithLabelValues("Deployment", dep.Namespace).Inc()
 			}
 		}
 	}
@@ -83,6 +88,7 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					logger.Error(err, "Failed to create VPA", "name", vpa.Name)
 					return ctrl.Result{}, err
 				}
+				r.Metrics.VPACreated.WithLabelValues("DaemonSet", ds.Namespace).Inc()
 			}
 		}
 	}
@@ -102,6 +108,7 @@ func (r *VPAControllerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 					logger.Error(err, "Failed to create VPA", "name", vpa.Name)
 					return ctrl.Result{}, err
 				}
+				r.Metrics.VPACreated.WithLabelValues("StatefulSet", sts.Namespace).Inc()
 			}
 		}
 	}
@@ -135,6 +142,7 @@ func (r *VPAControllerReconciler) generateVPA(name, namespace string, selector *
 
 func (r *VPAControllerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("vpauto-creation-controller").
 		For(&appsv1.Deployment{}).
 		Owns(&appsv1.DaemonSet{}).
 		Owns(&appsv1.StatefulSet{}).
