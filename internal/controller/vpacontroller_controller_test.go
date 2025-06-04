@@ -19,6 +19,8 @@ import (
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 
 	"github.com/Sindvero/vpa-creation-operator/internal/controller"
+	"github.com/Sindvero/vpa-creation-operator/internal/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func setupScheme(t *testing.T) *runtime.Scheme {
@@ -51,6 +53,14 @@ func TestReconcile_CreatesVPAForAnnotatedDeployment(t *testing.T) {
 	r := &controller.VPAControllerReconciler{
 		Client: fakeClient,
 		Scheme: scheme,
+		Metrics: &metrics.Collectors{
+			VPACreated: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_created"}, []string{"kind", "namespace"},
+			),
+			VPADeleted: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_deleted"}, []string{"namespace"},
+			),
+		},
 	}
 
 	res, err := r.Reconcile(context.TODO(), reconcile.Request{
@@ -91,6 +101,14 @@ func TestReconcile_CreatesVPAForAnnotatedDaemonSet(t *testing.T) {
 	r := &controller.VPAControllerReconciler{
 		Client: fakeClient,
 		Scheme: scheme,
+		Metrics: &metrics.Collectors{
+			VPACreated: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_created"}, []string{"kind", "namespace"},
+			),
+			VPADeleted: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_deleted"}, []string{"namespace"},
+			),
+		},
 	}
 
 	res, err := r.Reconcile(context.TODO(), reconcile.Request{
@@ -131,6 +149,14 @@ func TestReconcile_CreatesVPAForAnnotatedStatefulSet(t *testing.T) {
 	r := &controller.VPAControllerReconciler{
 		Client: fakeClient,
 		Scheme: scheme,
+		Metrics: &metrics.Collectors{
+			VPACreated: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_created"}, []string{"kind", "namespace"},
+			),
+			VPADeleted: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_deleted"}, []string{"namespace"},
+			),
+		},
 	}
 
 	res, err := r.Reconcile(context.TODO(), reconcile.Request{
@@ -182,6 +208,14 @@ func TestReconcile_SkipsWithoutAnnotation(t *testing.T) {
 	reconciler := &controller.VPAControllerReconciler{
 		Client: fakeClient,
 		Scheme: scheme,
+		Metrics: &metrics.Collectors{
+			VPACreated: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_created"}, []string{"kind", "namespace"},
+			),
+			VPADeleted: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_deleted"}, []string{"namespace"},
+			),
+		},
 	}
 
 	_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{
@@ -229,7 +263,18 @@ func TestReconcile_ExistingVPA_NoDuplicate(t *testing.T) {
 	}
 
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(dep, existingVPA).Build()
-	reconciler := &controller.VPAControllerReconciler{Client: fakeClient, Scheme: scheme}
+	reconciler := &controller.VPAControllerReconciler{
+		Client: fakeClient,
+		Scheme: scheme,
+		Metrics: &metrics.Collectors{
+			VPACreated: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_created"}, []string{"kind", "namespace"},
+			),
+			VPADeleted: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_deleted"}, []string{"namespace"},
+			),
+		},
+	}
 
 	_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{
 		NamespacedName: client.ObjectKey{Namespace: "default", Name: "existing-deploy"},
@@ -257,6 +302,14 @@ func TestReconcile_OrphanedVPAIsDeleted(t *testing.T) {
 	reconciler := &controller.VPAControllerReconciler{
 		Client: fakeClient,
 		Scheme: scheme,
+		Metrics: &metrics.Collectors{
+			VPACreated: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_created"}, []string{"kind", "namespace"},
+			),
+			VPADeleted: prometheus.NewCounterVec(
+				prometheus.CounterOpts{Name: "test_deleted"}, []string{"namespace"},
+			),
+		},
 	}
 
 	_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
