@@ -151,16 +151,14 @@ func (r *VPAControllerReconciler) generateVPA(name, namespace string, selector *
 	return vpa
 }
 
-func (r *VPAControllerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	hasAnnotation := predicate.NewPredicateFuncs(func(obj client.Object) bool { // Only trigger reconcile loop for proper annoted objects
-		val, ok := obj.GetAnnotations()[vpaAnnotationKey]
+func (r *VPAControllerReconciler) SetupWithManagerFor(obj client.Object, mgr ctrl.Manager) error {
+	hasAnnotation := predicate.NewPredicateFuncs(func(o client.Object) bool {
+		val, ok := o.GetAnnotations()[vpaAnnotationKey]
 		return ok && val == "true"
 	})
 
 	return ctrl.NewControllerManagedBy(mgr).
-		Named("vpauto-creation-controller").
-		For(&appsv1.Deployment{}, builder.WithPredicates(hasAnnotation)).
-		Owns(&appsv1.DaemonSet{}, builder.WithPredicates(hasAnnotation)).
-		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(hasAnnotation)).
+		Named("vpauto-"+getKind(obj)).
+		For(obj, builder.WithPredicates(hasAnnotation)).
 		Complete(r)
 }

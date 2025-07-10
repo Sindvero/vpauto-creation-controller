@@ -27,11 +27,13 @@ import (
 
 	"github.com/Sindvero/vpa-creation-operator/internal/controller"
 	"github.com/Sindvero/vpa-creation-operator/internal/metrics"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	autoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -145,13 +147,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.VPAControllerReconciler{
-		Client:  mgr.GetClient(),
-		Scheme:  mgr.GetScheme(),
-		Metrics: collectors,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VPAController")
-		os.Exit(1)
+	types := []client.Object{
+		&appsv1.Deployment{},
+		&appsv1.DaemonSet{},
+		&appsv1.StatefulSet{},
+	}
+
+	for _, obj := range types {
+		if err := (&controller.VPAControllerReconciler{
+			Client:  mgr.GetClient(),
+			Scheme:  mgr.GetScheme(),
+			Metrics: collectors,
+		}).SetupWithManagerFor(obj, mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", obj.GetObjectKind().GroupVersionKind().Kind)
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
