@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 0.0.1
+VERSION ?= v0.0.3
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -233,6 +233,56 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
+
+
+#@ Helm generation
+
+.PHONY: helm-chart
+helm-chart: ## Generate a basic Helm chart structure under ./helm/vpa-creation-operator
+	helm create helm/vpa-creation-operator
+	yq -i 'del(.ingress)' helm/vpa-creation-operator/values.yaml
+	rm -rf helm/vpa-creation-operator/templates/tests
+	rm -f helm/vpa-creation-operator/templates/ingress.yaml
+	rm -f helm/vpa-creation-operator/templates/hpa.yaml
+	sed -i.bak 's|repository: nginx|repository: sindvero/vpauto-creation-controller|' helm/vpa-creation-operator/values.yaml
+	sed -i.bak 's|tag: .*|tag: "$(VERSION)"|' helm/vpa-creation-operator/values.yaml
+	rm -f helm/vpa-creation-operator/templates/NOTES.txt
+	rm -f helm/vpa-creation-operator/values.yaml.bak
+	sed -i.bak 's|^version:.*|version: $(VERSION)|' helm/vpa-creation-operator/Chart.yaml
+	sed -i.bak 's|^appVersion:.*|appVersion: "$(VERSION)"|' helm/vpa-creation-operator/Chart.yaml
+	rm -f helm/vpa-creation-operator/Chart.yaml.bak
+
+.PHONY: helm-lint
+helm-lint: ## Lint the Helm chart
+	helm lint helm/vpa-creation-operator
+
+.PHONY: helm-package
+helm-package: ## Package the Helm chart
+	helm package helm/vpa-creation-operator --destination dist
+
+.PHONY: helm-install
+helm-install: ## Install the Helm chart into the current cluster
+	helm install vpa-creation-operator ./dist/vpa-creation-operator-$(VERSION).tgz
+
+.PHONY: helm-upgrade
+helm-upgrade: ## Upgrade (or install) the Helm chart into the current cluster
+	helm upgrade --install vpa-creation-operator ./dist/vpa-creation-operator-$(VERSION).tgz
+
+.PHONY: helm-uninstall
+helm-uninstall: ## Uninstall the Helm chart from the current cluster
+	helm uninstall vpa-creation-operator
+
+.PHONY: helm-push
+helm-push: ## Push the Helm chart to a Helm repository (requires helm-push plugin and setup)
+	helm push ./dist/vpa-creation-operator-$(VERSION).tgz oci://my.helm.repo.com/namespace
+
+# You can override the helm repository with HELM_REPO
+HELM_REPO ?= oci://my.helm.repo.com/namespace
+
+.PHONY: helm-push-oci
+helm-push-oci: ## Push the Helm chart to a configured OCI-compatible Helm repository
+	helm push ./dist/vpa-creation-operator-$(VERSION).tgz $(HELM_REPO)
+
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
